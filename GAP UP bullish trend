@@ -1,0 +1,84 @@
+// THIS CODE WILL CHECK IF GAP UP IS THERE AND FIRST CANDLE IS BULLISH 
+
+//@version=5
+strategy("Gap Up Bullish",overlay=true, initial_capital = 1000000, default_qty_value = 100, default_qty_type = strategy.percent_of_equity)
+
+//time parmeters
+HighLowTime = input.string("0915-0935", "High Low Time to be Measured")
+HighLowTimeSession = time == time("", HighLowTime,"GMT+0530")
+
+//variable declaration:
+
+var TodayOpen = 0.0
+var YesterdayClose = 0.0
+var OpenRangeHigh = 0.0 
+var OpenRangeLow= 0.0 
+var isBullish = false
+var isBreakoutCandleBullish = false
+
+
+//opening bar conditions:
+if session.isfirstbar
+    TodayOpen := open
+    YesterdayClose := close[1]
+
+GapUp = false
+if (YesterdayClose * 1.001 < TodayOpen)
+    GapUp := true
+if session.isfirstbar
+    if close > open
+        isBullish := true
+    else
+        isBullish := false
+
+//check is gap up is true 
+GapUpBullish = false
+if GapUp and isBullish
+    GapUpBullish := true
+
+//mark the first 4 candles High and Low:
+
+if HighLowTimeSession and not HighLowTimeSession[1]     //high
+    OpenRangeHigh := high
+
+else if HighLowTimeSession and HighLowTimeSession[1]
+    OpenRangeHigh := math.max(OpenRangeHigh,high)
+
+if HighLowTimeSession and not HighLowTimeSession[1]
+    OpenRangeLow := low
+
+else if HighLowTimeSession and HighLowTimeSession[1]        //low
+    OpenRangeLow := math.min(OpenRangeLow,low)
+
+/// BREAKOUTCANDLE(5th candle) IS BULLISH
+if close > OpenRangeHigh and time < timestamp(year,month,dayofmonth,13,00)
+    if (close-low)/(high-low) > 0.8
+        isBreakoutCandleBullish := true
+    else
+        isBreakoutCandleBullish := false
+
+//entry checkpoints session high n time < 1pm.
+isOpenRangeBreakout = false
+if close > OpenRangeHigh and time < timestamp(year,month,dayofmonth,13,00)
+    isOpenRangeBreakout := true
+
+
+//entry conditions:
+notInTrade = strategy.position_size <= 0
+strategy.risk.max_intraday_filled_orders(2)     //1 trade per day
+goLong = false
+if isOpenRangeBreakout and GapUpBullish and isBreakoutCandleBullish and notInTrade
+    goLong := true
+if goLong
+    strategy.entry("long", strategy.long)      //entry
+ 
+//exit conditions
+endTradingTime = time >= timestamp(syminfo.timezone,year,month,dayofmonth,15) 
+Stoploss = close<OpenRangeLow
+
+if endTradingTime or Stoploss
+    strategy.close("long")                  //exit
+
+// plotting    
+plot(OpenRangeHigh, color=color.green)
+plot(OpenRangeLow, color=color.red)
