@@ -1,0 +1,62 @@
+
+//@version=5
+strategy("Gap Up with body conditons",overlay=true, initial_capital = 1000000, default_qty_value = 100, default_qty_type = strategy.percent_of_equity)
+
+//time parameters
+HighLowTime = input.string("0915-0935", "High Low Time to be Measured")
+HighLowTimeSession = time == time("", HighLowTime,"GMT+0530")
+
+bgcolor(HighLowTimeSession?color.new(color.aqua,80):na)
+
+//variable declaration
+var TodayOpen = 0.0
+var YesterdayClose = 0.0
+var OpenRangeHigh = 0.0 
+var OpenRangeLow= 0.0 
+
+//opening bar conditions
+if session.isfirstbar
+    TodayOpen := open
+    YesterdayClose := close[1]
+GapUp = YesterdayClose < TodayOpen  // Check if there's a gap up
+
+//mark the first 4 candles High and Low
+if HighLowTimeSession and not HighLowTimeSession[1]     //high
+    OpenRangeHigh := high
+
+else if HighLowTimeSession and HighLowTimeSession[1]
+    OpenRangeHigh := math.max(OpenRangeHigh,high)
+
+if HighLowTimeSession and not HighLowTimeSession[1]
+    OpenRangeLow := low
+
+else if HighLowTimeSession and HighLowTimeSession[1]        //low
+    OpenRangeLow := math.min(OpenRangeLow,low)
+/// STRATEGY ///
+
+// entry checkpoints session high and time < 1 pm.
+isOpenRangeBreakout = close > OpenRangeHigh and time < timestamp(year,month,dayofmonth,13,00) 
+
+// entry conditions: enter only if there's a gap up
+notInTrade = strategy.position_size <= 0
+strategy.risk.max_intraday_filled_orders(2)     // 1 trade per day
+
+bodySize = close - open
+sessionRange = OpenRangeHigh - OpenRangeLow
+bodyAboveHalfSessionRange = bodySize >= 0.5 * sessionRange
+
+goLong = GapUp and isOpenRangeBreakout and notInTrade and bodyAboveHalfSessionRange
+
+if goLong
+    strategy.entry("long", strategy.long)
+ 
+// exit conditions
+endTradingTime = time >= timestamp(syminfo.timezone,year,month,dayofmonth,15) 
+Stoploss = close < OpenRangeLow
+
+if endTradingTime or Stoploss
+    strategy.close("long")
+
+// plotting    
+plot(OpenRangeHigh, color=color.green)
+plot(OpenRangeLow, color=color.red)
