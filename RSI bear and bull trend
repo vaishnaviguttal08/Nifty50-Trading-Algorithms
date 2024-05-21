@@ -1,0 +1,95 @@
+//@version=5
+strategy(title = "RSI bear n bull", overlay=true, initial_capital = 1000000, default_qty_value = 100, default_qty_type = strategy.percent_of_equity)
+
+//session high n low of first 4 candles 
+SessionLow(sessionTime, sessionTimeZone=syminfo.timezone) =>
+    insideSession = not na(time(timeframe.period, sessionTime, sessionTimeZone))
+    var float sessionLowPrice = na
+  if insideSession and not insideSession[1]
+        sessionLowPrice := low
+    else if insideSession
+        sessionLowPrice := math.min(sessionLowPrice, low)
+     sessionLowPrice
+
+SessionHigh(sessionTime, sessionTimeZone=syminfo.timezone) =>
+    insideSession = not na(time(timeframe.period, sessionTime, sessionTimeZone))
+    var float sessionHighPrice = na
+ if insideSession and not insideSession[1]
+        sessionHighPrice := high
+    else if insideSession
+        sessionHighPrice := math.max(sessionHighPrice, high)
+    sessionHighPrice
+InSession(sessionTimes, sessionTimeZone=syminfo.timezone) =>
+    not na(time(timeframe.period, sessionTimes, sessionTimeZone))
+
+// Get the session low
+sessLow = SessionLow(session, timeZone)
+sessHigh = SessionHigh(session, timeZone)
+
+// check if the current candle bullish hai
+isBullish() =>
+    close > open
+isBearish() =>
+    close < open
+
+// Time parameters:
+session  = input.session("0345-0405", title="Trading Session")
+timeZone = input.string("GMT", title="Time Zone")
+
+// RSI Settings
+rsiLength = input(14, title="RSI Length")
+overboughtLevel = input(70, title="Overbought Level")
+oversoldLevel = input(30, title="Oversold Level")
+rsiValue = ta.rsi(close, rsiLength)              // Calculate RSI
+
+//setting up variable
+var rsiCondition = false
+if rsiValue > oversoldLevel and rsiValue[1] < oversoldLevel        //bullish market condition
+    rsiCondition := true
+var rsiConditionShort = false
+if rsiValue < overboughtLevel and rsiValue[1] > overboughtLevel    // bearish market condition:
+    rsiConditionShort := true
+
+// Buy condition with RSI in BULLISH:
+goLongCondition1 = isBullish() and close > sessHigh and time <= timestamp(syminfo.timezone, year, month, dayofmonth, 13, 00) and rsiCondition
+
+// short condition with RSI in bearish market:
+
+goShortCondition1 = isBearish() and close < sessLow and time <= timestamp(syminfo.timezone, year, month, dayofmonth, 13, 00) and rsiConditionShort  
+timePeriod = time >= timestamp(syminfo.timezone, 2023, 01, 01, 09, 15, 0)
+
+// Close conditions
+endTradingTime = time >= timestamp(syminfo.timezone, year, month, dayofmonth, 15, 10)
+closePosition = (isBearish() and close < sessLow)
+closePositionShort  = (isBullish() and close > sessHigh)
+
+// Limit trading to 1 trade per day
+notInTrade = strategy.position_size <= 0
+strategy.risk.max_intraday_filled_orders(count=2)
+
+// Reset RSI conditions
+if (rsiValue > overboughtLevel and rsiValue[1] < overboughtLevel) or endTradingTime
+    rsiConditionShort := true
+
+//  ENRTY BULLISH
+if (goLongCondition1 and timePeriod and notInTrade)
+    stopLoss = sessLow
+    takeProfit = high * 1.02
+    strategy.entry("long", strategy.long)
+if (closePosition or endTradingTime or rsiValue < oversoldLevel)
+    strategy.close("long")
+
+// SHORT BEARISH
+if (goShortCondition1 and timePeriod and notInTrade)
+    stopLoss = sessHigh
+    takeProfit = low * 0.98
+    strategy.entry("short", strategy.short)
+
+if (closePositionShort or endTradingTime or rsiValue > overboughtLevel)
+    strategy.close("short")     
+
+// Show the session low on the chart
+plot(sessLow, color=color.red, title="Session Low")
+
+// Show the session high on the chart
+plot(sessHigh, color=color.green, title="Session High")
