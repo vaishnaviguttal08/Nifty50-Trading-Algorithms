@@ -1,0 +1,77 @@
+//@version=5
+strategy(title = "Open Range Breakout Strat v1", overlay=true, initial_capital = 1000000, default_qty_value = 100
+  , default_qty_type = strategy.percent_of_equity)
+
+LowestLow(sessionTime, sessionTimeZone=syminfo.timezone) =>
+    insideSession = not na(time(timeframe.period, sessionTime, sessionTimeZone))
+    var float lowestLowPrice = na
+
+    if insideSession and not insideSession[1]
+        lowestLowPrice := low
+    else if insideSession
+        lowestLowPrice := math.min(lowestLowPrice, low)
+    
+    lowestLowPrice
+
+HighestHigh(sessionTime, sessionTimeZone=syminfo.timezone) =>
+    insideSession = not na(time(timeframe.period, sessionTime, sessionTimeZone))
+    var float highestHighPrice = na
+
+    if insideSession and not insideSession[1]
+        highestHighPrice := high
+    else if insideSession
+        highestHighPrice := math.max(highestHighPrice, high)
+    
+    highestHighPrice
+
+InSession(sessionTimes, sessionTimeZone=syminfo.timezone) =>
+    not na(time(timeframe.period, sessionTimes, sessionTimeZone))
+
+
+// Configure session with inputs
+session  = input.session("0345-0405", title="Trading Session")
+timeZone = input.string("GMT", title="Time Zone")
+
+// Get the session low
+sessLow = LowestLow(session, timeZone)
+
+// Get the session high
+sessHigh = HighestHigh(session, timeZone)
+
+// check if the current candle bullish hai
+isBullish() =>
+    close > open
+
+// Function to check if the current candle is bearish
+isBearish() =>
+    close < open
+
+
+// For visual verification, highlight the background of session bars
+bgcolor(InSession(session, timeZone) ? color.new(color.orange, 90) : na)
+
+goLongCondition1 = isBullish() and close > sessHigh and time <= timestamp(syminfo.timezone, year, month, dayofmonth, 13, 00)
+
+timePeriod = time >= timestamp(syminfo.timezone, 2023, 01, 01, 09, 15, 0)
+
+endTradingTime = time >= timestamp(syminfo.timezone, year, month, dayofmonth, 15, 10)
+
+closePosition = isBearish() and close < sessLow
+
+notInTrade = strategy.position_size <= 0
+
+if (goLongCondition1 and timePeriod and notInTrade)
+    stopLoss = sessLow
+    takeProfit = high * 1.02
+    strategy.entry("long", strategy.long)
+    // strategy.exit(id = "exit", from_entry = "long", stop = stopLoss, limit = takeProfit)
+
+if (closePosition or endTradingTime)
+    strategy.close("long")
+        
+
+// Show the session low on the chart
+plot(sessLow, color=color.red, title="Session Low")
+
+// Show the session high on the chart
+plot(sessHigh, color=color.green, title="Session High")
