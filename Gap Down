@@ -1,0 +1,28 @@
+//@version=5
+strategy("gap_down", overlay=true)
+
+var TodayOpen = open
+var YesterdayClose = request.security(syminfo.tickerid, "D", close[1])
+
+// Check if there's a gap up at 9:15 am
+gap_down_915 = ta.change(open) < 0 and hour == 9 and minute == 15
+
+// Entry condition
+entry_condition = gap_down_915 
+if entry_condition
+    strategy.entry("Long", strategy.long)
+
+//1 trade per day
+notInTrade = strategy.position_size <= 0
+strategy.risk.max_intraday_filled_orders(2) 
+    
+//exit conditions
+endTradingTime = time >= timestamp(syminfo.timezone,year,month,dayofmonth,15) 
+stop_loss_condition = low < strategy.position_avg_price * 0.99        // Define stop loss condition
+if endTradingTime or stop_loss_condition
+    strategy.close("Long")
+
+is_opening_candle = hour == 9 and minute == 15
+
+// Plotting:
+plotshape(series=gap_down_915 and is_opening_candle, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
